@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chụp Ảnh Photobooth Phong Cách Hàn Quốc</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- html2canvas để xuất ảnh -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <!-- Face detection -->
+    <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.20.0/dist/face-api.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Playfair+Display:ital,wght@0,600;1,400&display=swap');
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: linear-gradient(135deg, #f5f7ff 0%, #eef2ff 45%, #fdf2f8 100%);
+        }
+        .font-serif-booth {
+            font-family: 'Playfair Display', serif;
+        }
+        .sticker-item {
+            position: absolute;
+            cursor: move;
+            user-select: none;
+            touch-action: none;
+        }
+        .sticker-item .delete-btn {
+            display: none;
+        }
+        .sticker-item:hover .delete-btn {
+            display: block;
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.95);
+            border: 1px solid rgba(255, 255, 255, 0.7);
+            box-shadow: 0 20px 45px rgba(99, 102, 241, 0.14);
+            backdrop-filter: blur(10px);
+        }
+        .photo-frame {
+            border: 8px solid transparent;
+            box-shadow: 0 18px 35px rgba(15, 23, 42, 0.15);
+            border-radius: 1.25rem;
+            background: linear-gradient(145deg, #ffffff, #f8fafc);
+            background-clip: padding-box;
+            position: relative;
+        }
+        .photo-frame::before {
+            content: "";
+            position: absolute;
+            inset: -4px;
+            border-radius: 1.4rem;
+            padding: 4px;
+            background: linear-gradient(135deg, #22d3ee, #8b5cf6, #f472b6, #facc15);
+            -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            -webkit-mask-composite: xor;
+            mask-composite: exclude;
+            z-index: -1;
+            animation: neonGlow 3s linear infinite;
+        }
+        @keyframes neonGlow {
+            0% { filter: hue-rotate(0deg); }
+            100% { filter: hue-rotate(360deg); }
+        }
+        .hover-btn {
+            transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+        }
+        .hover-btn:hover {
+            transform: translateY(-2px) scale(1.02);
+            box-shadow: 0 12px 24px rgba(99, 102, 241, 0.25);
+        }
+        .hover-btn:active {
+            transform: scale(0.97);
+        }
+        .interaction-zoom {
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .interaction-zoom:hover {
+            transform: scale(1.05);
+        }
+        .interactive-touch {
+            touch-action: manipulation;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between text-gray-800">
+
+    <!-- Header -->
+    <header class="bg-white shadow-sm border-b border-gray-100 py-4 px-6 flex justify-between items-center">
+        <div class="flex items-center space-x-2">
+            <div class="w-8 h-8 bg-indigo-500 rounded-full flex items-center justify-center text-white">
+                <i class="fa-solid fa-camera"></i>
+            </div>
+            <span class="text-xl font-bold tracking-wider text-gray-900">K-PHOTO <span class="text-indigo-500">BOOTH</span></span>
+        </div>
+        <div class="text-sm text-gray-500">Phiên Bản Sửa Lỗi Camera</div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 max-w-6xl w-full mx-auto p-4 md:p-6 flex flex-col items-center justify-center">
+        
+        <!-- STEP 1: Cấu hình ban đầu -->
+        <div id="step-setup" class="glass-card w-full max-w-md rounded-2xl p-6 text-center">
+            <h2 class="text-2xl font-bold mb-4">Chào mừng bạn đến với K-Booth!</h2>
+            <p class="text-gray-500 mb-6 text-sm">Chuẩn bị tư thế sẵn sàng để có những bức ảnh chuẩn phong cách Hàn Quốc.</p>
+            
+            <div class="mb-6">
+                <label class="block text-left text-sm font-semibold text-gray-700 mb-2">Chọn số lượng ảnh chụp:</label>
+                <div class="grid grid-cols-2 gap-3">
+                    <button onclick="selectLayout(4)" id="btn-layout-4" class="interaction-zoom hover-btn py-3 px-4 rounded-xl border-2 border-indigo-500 text-indigo-500 font-bold bg-indigo-50 flex flex-col items-center justify-center transition">
+                        <span class="text-xl">4 Ảnh</span>
+                        <span class="text-xs font-normal">Dạng dải dọc (4-Cuts)</span>
+                    </button>
+                    <button onclick="selectLayout(1)" id="btn-layout-1" class="interaction-zoom hover-btn py-3 px-4 rounded-xl border-2 border-gray-200 text-gray-500 font-bold hover:border-indigo-300 flex flex-col items-center justify-center transition">
+                        <span class="text-xl">1 Ảnh</span>
+                        <span class="text-xs font-normal">Dạng ảnh đơn</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Nút kích hoạt Camera chính -->
+            <button onclick="startCamera()" class="hover-btn w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 px-6 rounded-xl shadow-lg transition transform active:scale-95">
+                Kích hoạt Camera <i class="fa-solid fa-arrow-right ml-2"></i>
+            </button>
+
+            <!-- BẢNG CHẨN ĐOÁN LỖI TỰ ĐỘNG (Sẽ hiển thị nếu camera gặp lỗi) -->
+            <div id="diagnostic-panel" class="hidden mt-6 p-4 bg-red-50 border border-red-200 rounded-xl text-left">
+                <h3 class="text-red-700 font-bold text-sm mb-2"><i class="fa-solid fa-circle-exclamation mr-1"></i> Phát hiện sự cố bảo mật / hệ thống:</h3>
+                <p id="diagnostic-msg" class="text-xs text-red-600 leading-relaxed"></p>
+                <div class="mt-3 pt-3 border-t border-red-100 flex flex-col gap-2">
+                    <button onclick="window.location.reload()" class="text-xs bg-red-600 hover:bg-red-700 text-white font-semibold py-1.5 px-3 rounded text-center transition">
+                        Tải lại trang (Reload)
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- STEP 2: Chụp ảnh -->
+        <div id="step-capture" class="hidden w-full max-w-4xl grid grid-cols-1 md:grid-cols-3 gap-6">
+            <!-- Camera View -->
+            <div class="md:col-span-2 photo-frame bg-black rounded-2xl overflow-hidden relative aspect-video flex items-center justify-center">
+                <video id="webcam" class="w-full h-full object-cover scale-x-[-1]" autoplay playsinline></video>
+                <canvas id="face-overlay" class="absolute inset-0 w-full h-full pointer-events-none"></canvas>
+                
+                <!-- Flash Screen Effect -->
+                <div id="flash-screen" class="absolute inset-0 bg-white opacity-0 pointer-events-none transition-opacity duration-150"></div>
+                
+                <!-- Countdown Overlay -->
+                <div id="countdown-overlay" class="hidden absolute inset-0 bg-black/40 flex items-center justify-center">
+                    <span id="countdown-text" class="text-white text-8xl font-black animate-bounce">3</span>
+                </div>
+
+                <!-- Capture Indicators -->
+                <div class="absolute top-4 left-4 bg-black/60 text-white px-3 py-1 rounded-full text-xs font-semibold backdrop-blur-sm">
+                    Trạng thái: <span id="capture-status">Đang xem trước</span>
+                </div>
+            </div>
+
+            <!-- Controls Side Panel -->
+            <div class="glass-card rounded-2xl p-6 flex flex-col justify-between">
+                <div>
+                    <h3 class="text-lg font-bold mb-2">Tiến trình chụp</h3>
+                    <p class="text-sm text-gray-500 mb-4">Hệ thống sẽ tự động chụp liên tiếp theo số lượng bạn đã chọn.</p>
+                    
+                    <!-- Progress Slots -->
+                    <div id="progress-slots" class="grid grid-cols-4 gap-2 mb-6">
+                        <!-- Sẽ tự động sinh theo layout bằng JS -->
+                    </div>
+                </div>
+
+                <div class="space-y-3">
+                    <button id="btn-trigger-capture" onclick="triggerSession()" class="hover-btn w-full bg-rose-500 hover:bg-rose-600 text-white font-bold py-4 px-6 rounded-xl shadow-lg transition transform active:scale-95 flex items-center justify-center space-x-2">
+                        <i class="fa-solid fa-camera text-xl"></i>
+                        <span>BẮT ĐẦU CHỤP</span>
+                    </button>
+                    <button onclick="stopCameraAndReset()" class="hover-btn interactive-touch w-full bg-gray-100 hover:bg-gray-200 text-gray-600 font-semibold py-2 px-4 rounded-xl text-sm transition">
+                        Quay lại thiết lập
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- STEP 3: Biên tập & Tải về -->
+        <div id="step-editor" class="hidden w-full max-w-5xl grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
+            
+            <!-- Left Side: Interactive Photostrip -->
+            <div class="md:col-span-5 flex justify-center">
+                <div id="photostrip" class="glass-card p-4 flex flex-col items-center relative overflow-hidden transition-colors" style="width: 320px; border-radius: 1.5rem;">
+                    <div id="strip-images" class="w-full flex flex-col gap-3">
+                        <!-- Ảnh ghép sẽ được render ở đây -->
+                    </div>
+                    <div class="w-full mt-5 text-center flex flex-col items-center justify-center border-t border-dashed border-gray-300 pt-3">
+                        <div id="strip-text" class="font-serif-booth text-sm tracking-widest font-semibold text-gray-800 uppercase">My Memories</div>
+                        <div id="strip-date" class="text-[10px] text-gray-400 mt-1">2026.07.13</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Side: Editor Controls -->
+            <div class="md:col-span-7 space-y-6">
+                <!-- Chọn Frame Background -->
+                <div class="glass-card rounded-2xl p-5">
+                    <h4 class="font-bold mb-3 text-sm text-gray-700 uppercase tracking-wider"><i class="fa-solid fa-palette mr-2"></i>Chọn Màu Khung (Frame)</h4>
+                    <div class="flex flex-wrap gap-2">
+                        <button onclick="changeFrameColor('#ffffff')" class="interaction-zoom hover-btn w-10 h-10 rounded-full border border-gray-300 bg-white shadow-sm" title="Trắng"></button>
+                        <button onclick="changeFrameColor('#111827')" class="interaction-zoom hover-btn w-10 h-10 rounded-full border border-gray-300 bg-gray-900 shadow-sm" title="Đen"></button>
+                        <button onclick="changeFrameColor('#fce7f3')" class="interaction-zoom hover-btn w-10 h-10 rounded-full border border-gray-300 bg-pink-100 shadow-sm" title="Hồng phấn"></button>
+                        <button onclick="changeFrameColor('#dbeafe')" class="interaction-zoom hover-btn w-10 h-10 rounded-full border border-gray-300 bg-blue-100 shadow-sm" title="Xanh nhạt"></button>
+                        <button onclick="changeFrameColor('#fef9c3')" class="interaction-zoom hover-btn w-10 h-10 rounded-full border border-gray-300 bg-yellow-100 shadow-sm" title="Vàng mơ"></button>
+                        <button onclick="changeFrameColor('#e0e7ff')" class="interaction-zoom hover-btn w-10 h-10 rounded-full border border-gray-300 bg-indigo-100 shadow-sm" title="Tím khói"></button>
+                    </div>
+                    <div class="mt-4 grid grid-cols-2 gap-2">
+                        <button onclick="applyFrameStyle('soft')" class="interaction-zoom hover-btn border rounded-xl p-2 text-sm font-semibold bg-white">Khung mềm</button>
+                        <button onclick="applyFrameStyle('glow')" class="interaction-zoom hover-btn border rounded-xl p-2 text-sm font-semibold bg-white">Khung neon</button>
+                        <button onclick="applyFrameStyle('polaroid')" class="interaction-zoom hover-btn border rounded-xl p-2 text-sm font-semibold bg-white">Polaroid</button>
+                        <button onclick="applyFrameStyle('korean')" class="interaction-zoom hover-btn border rounded-xl p-2 text-sm font-semibold bg-white">Korean Cute</button>
+                    </div>
+                </div>
+
+                <!-- Chọn Bộ Lọc (Filters) -->
+                <div class="glass-card rounded-2xl p-5">
+                    <h4 class="font-bold mb-3 text-sm text-gray-700 uppercase tracking-wider"><i class="fa-solid fa-wand-magic-sparkles mr-2"></i>Bộ Lọc Màu</h4>
+                    <div class="grid grid-cols-3 gap-2">
+                        <button onclick="applyFilter('none')" class="interaction-zoom hover-btn py-2 px-3 bg-gray-50 border rounded-lg hover:bg-gray-100 text-xs font-semibold">Gốc</button>
+                        <button onclick="applyFilter('grayscale(100%)')" class="interaction-zoom hover-btn py-2 px-3 bg-gray-50 border rounded-lg hover:bg-gray-100 text-xs font-semibold">Đen Trắng</button>
+                        <button onclick="applyFilter('sepia(60%)')" class="interaction-zoom hover-btn py-2 px-3 bg-gray-50 border rounded-lg hover:bg-gray-100 text-xs font-semibold">Sepia</button>
+                        <button onclick="applyFilter('brightness(110%) contrast(90%) saturate(120%)')" class="interaction-zoom hover-btn py-2 px-3 bg-gray-50 border rounded-lg hover:bg-gray-100 text-xs font-semibold">Tươi sáng</button>
+                        <button onclick="applyFilter('contrast(120%) brightness(85%) sepia(30%)')" class="interaction-zoom hover-btn py-2 px-3 bg-gray-50 border rounded-lg hover:bg-gray-100 text-xs font-semibold">Cổ điển</button>
+                        <button onclick="applyFilter('blur(0.5px) contrast(110%)')" class="interaction-zoom hover-btn py-2 px-3 bg-gray-50 border rounded-lg hover:bg-gray-100 text-xs font-semibold">Mơ màng</button>
+                    </div>
+                </div>
+
+                <!-- Chèn Sticker ngộ nghĩnh -->
+                <div class="glass-card rounded-2xl p-5">
+                    <h4 class="font-bold mb-3 text-sm text-gray-700 uppercase tracking-wider"><i class="fa-solid fa-face-smile mr-2"></i>Thêm Sticker / GIF (Nhấp để thêm, kéo để di chuyển)</h4>
+                    <div class="flex flex-wrap gap-3 text-3xl">
+                        <button onclick="addSticker('🕶️')" class="interaction-zoom hover-btn text-3xl">🕶️</button>
+                        <button onclick="addSticker('👑')" class="interaction-zoom hover-btn text-3xl">👑</button>
+                        <button onclick="addSticker('🐱')" class="interaction-zoom hover-btn text-3xl">🐱</button>
+                        <button onclick="addSticker('🐰')" class="interaction-zoom hover-btn text-3xl">🐰</button>
+                        <button onclick="addSticker('❤️')" class="interaction-zoom hover-btn text-3xl">❤️</button>
+                        <button onclick="addSticker('✨')" class="interaction-zoom hover-btn text-3xl">✨</button>
+                        <button onclick="addSticker('🎈')" class="interaction-zoom hover-btn text-3xl">🎈</button>
+                        <button onclick="addSticker('🎀')" class="interaction-zoom hover-btn text-3xl">🎀</button>
+                    </div>
+                    <div class="mt-4 flex flex-wrap gap-2">
+                        <button onclick="addSticker('💖', 'emoji')" class="interaction-zoom hover-btn rounded-full bg-pink-50 px-3 py-2 text-sm">💖 Cute</button>
+                        <button onclick="addSticker('✨', 'emoji')" class="interaction-zoom hover-btn rounded-full bg-yellow-50 px-3 py-2 text-sm">✨ Spark</button>
+                        <button onclick="addSticker('🌈', 'emoji')" class="interaction-zoom hover-btn rounded-full bg-cyan-50 px-3 py-2 text-sm">🌈 Rainbow</button>
+                        <button onclick="addSticker('https://media.giphy.com/media/3oEjI6SIIHBdRxXI40/giphy.gif', 'gif')" class="interaction-zoom hover-btn rounded-full bg-purple-50 px-3 py-2 text-sm">GIF 1</button>
+                        <button onclick="addSticker('https://media.giphy.com/media/l0MYt5jPR6QX5pnqM/giphy.gif', 'gif')" class="interaction-zoom hover-btn rounded-full bg-indigo-50 px-3 py-2 text-sm">GIF 2</button>
+                    </div>
+                    <div class="mt-4 space-y-2">
+                        <label class="text-xs font-semibold text-gray-600">Nhập đường dẫn GIF/emote từ máy tính</label>
+                        <input id="gif-input" type="text" placeholder="Dán đường dẫn file ảnh/gif..." class="w-full border rounded-lg p-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+                        <div class="flex gap-2">
+                            <button onclick="addStickerFromInput()" class="interaction-zoom hover-btn flex-1 bg-indigo-600 text-white rounded-lg px-3 py-2 text-sm font-semibold">Chèn</button>
+                            <label class="interaction-zoom hover-btn flex-1 cursor-pointer bg-gray-100 text-gray-700 rounded-lg px-3 py-2 text-sm font-semibold text-center">
+                                Chọn file
+                                <input id="gif-file-input" type="file" accept="image/*,.gif" class="hidden" onchange="handleGifFileSelect(event)">
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Thêm Chữ Tùy Biến -->
+                <div class="glass-card rounded-2xl p-5">
+                    <h4 class="font-bold mb-3 text-sm text-gray-700 uppercase tracking-wider"><i class="fa-solid fa-font mr-2"></i>Thông Tin Chữ Đáy Ảnh</h4>
+                    <div class="space-y-3">
+                        <input type="text" id="input-strip-text" oninput="updateStripText()" placeholder="Thay đổi chữ..." class="w-full border rounded-lg p-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" value="My Memories">
+                    </div>
+                </div>
+
+                <!-- Xuất & In Ảnh -->
+                <div class="flex space-x-3">
+                    <button onclick="downloadStrip()" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 px-6 rounded-xl shadow-lg transition flex items-center justify-center space-x-2">
+                        <i class="fa-solid fa-download"></i>
+                        <span>TẢI ẢNH VỀ</span>
+                    </button>
+                    <button onclick="printStrip()" class="bg-gray-800 hover:bg-gray-950 text-white font-bold py-4 px-6 rounded-xl shadow-lg transition flex items-center justify-center space-x-2">
+                        <i class="fa-solid fa-print"></i>
+                        <span>IN ẢNH</span>
+                    </button>
+                </div>
+                
+                <div class="text-center">
+                    <button onclick="restartApp()" class="text-indigo-600 hover:text-indigo-800 font-semibold text-sm transition">
+                        <i class="fa-solid fa-rotate-left mr-1"></i> Chụp lại lượt mới
+                    </button>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-white border-t border-gray-100 py-4 text-center text-xs text-gray-400">
+        &copy; 2026 K-Photo Booth. Được tối ưu hóa cho trải nghiệm máy tính cá nhân.
+    </footer>
+
+    <!-- JS Logic chính -->
+    <script src="script.js"></script>
+    <!--
+        // Cấu hình cơ bản
+        let selectedLayout = 4; // Mặc định là 4 ảnh dọc
+        let stream = null;
+        let capturedImages = [];
+        const webcamElement = document.getElementById('webcam');
+        const countdownOverlay = document.getElementById('countdown-overlay');
+        const countdownText = document.getElementById('countdown-text');
+        const flashScreen = document.getElementById('flash-screen');
+
+        // Khởi tạo ngày hiện tại ở chân ảnh
+        const today = new Date();
+        document.getElementById('strip-date').innerText = today.getFullYear() + '.' + String(today.getMonth() + 1).padStart(2, '0') + '.' + String(today.getDate()).padStart(2, '0');
+
+        // Kiểm tra lỗi hệ thống ngay khi tải trang
+        window.addEventListener('DOMContentLoaded', () => {
+            checkInitialSystemErrors();
+        });
+
+        // 1. CHỌN LAYOUT
+        function selectLayout(num) {
+            selectedLayout = num;
+            const btn4 = document.getElementById('btn-layout-4');
+            const btn1 = document.getElementById('btn-layout-1');
+
+            if(num === 4) {
+                btn4.className = "py-3 px-4 rounded-xl border-2 border-indigo-500 text-indigo-500 font-bold bg-indigo-50 flex flex-col items-center justify-center transition";
+                btn1.className = "py-3 px-4 rounded-xl border-2 border-gray-200 text-gray-500 font-bold hover:border-indigo-300 flex flex-col items-center justify-center transition";
+            } else {
+                btn1.className = "py-3 px-4 rounded-xl border-2 border-indigo-500 text-indigo-500 font-bold bg-indigo-50 flex flex-col items-center justify-center transition";
+                btn4.className = "py-3 px-4 rounded-xl border-2 border-gray-200 text-gray-500 font-bold hover:border-indigo-300 flex flex-col items-center justify-center transition";
+            }
+        }
+
+        // HÀM TỰ ĐỘNG KIỂM TRA LỖI BẢO MẬT & MÔI TRƯỜNG CHẠY
+        function checkInitialSystemErrors() {
+            const diagPanel = document.getElementById('diagnostic-panel');
+            const diagMsg = document.getElementById('diagnostic-msg');
+
+            // Lỗi 1: Chạy file trực tiếp bằng cách nhấp đúp file HTML (Không dùng Secure Context)
+            if (!window.isSecureContext) {
+                diagPanel.classList.remove('hidden');
+                diagMsg.innerHTML = `
+                    Bạn đang mở file trực tiếp bằng cách nhấp đúp tệp tin (Đường dẫn bắt đầu bằng <strong class="underline text-red-700">file:///</strong>). <br><br>
+                    <strong>Cách sửa:</strong> Trình duyệt nghiêm cấm tuyệt đối truy cập camera ở chế độ này để bảo vệ quyền riêng tư. Bạn bắt buộc phải chạy file thông qua <strong>Live Server trong VS Code</strong> (địa chỉ dạng <strong class="text-green-700">http://127.0.0.1:5500</strong> hoặc <strong class="text-green-700">http://localhost</strong>). Hãy thực hiện theo hướng dẫn Open Folder ở bước trước!
+                `;
+                return true;
+            }
+
+            // Lỗi 2: Trình duyệt không hỗ trợ các tính năng API Media (Rất hiếm gặp, chỉ xảy ra trên IE cũ)
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                diagPanel.classList.remove('hidden');
+                diagMsg.innerHTML = "Trình duyệt này không hỗ trợ hoặc đã vô hiệu hóa thư viện Camera hệ thống. Vui lòng chuyển sang sử dụng Google Chrome, Edge hoặc Firefox phiên bản mới nhất.";
+                return true;
+            }
+            return false;
+        }
+
+        // 2. KÍCH HOẠT CAMERA VỚI CHẨN ĐOÁN LỖI NÂNG CAO
+        async function startCamera() {
+            // Kiểm tra lỗi hệ thống trước khi khởi động
+            if (checkInitialSystemErrors()) return;
+
+            const diagPanel = document.getElementById('diagnostic-panel');
+            const diagMsg = document.getElementById('diagnostic-msg');
+            diagPanel.classList.add('hidden'); // Tạm ẩn bảng lỗi trước khi chạy
+
+            try {
+                // Thử khởi động với cấu hình tối ưu
+                stream = await navigator.mediaDevices.getUserMedia({
+                    video: { 
+                        width: { ideal: 1280 }, 
+                        height: { ideal: 720 }, 
+                        facingMode: "user" 
+                    },
+                    audio: false
+                });
+                
+                webcamElement.srcObject = stream;
+                
+                // Chuyển sang giao diện chụp ảnh
+                document.getElementById('step-setup').classList.add('hidden');
+                document.getElementById('step-capture').classList.remove('hidden');
+                renderProgressSlots();
+
+            } catch (err) {
+                console.warn("Thử camera cấu hình cao thất bại, đang thử cấu hình tối giản...", err);
+                
+                // FALLBACK: Thử khởi động camera với cấu hình cơ bản nhất (chấp nhận mọi chất lượng)
+                try {
+                    stream = await navigator.mediaDevices.getUserMedia({
+                        video: true,
+                        audio: false
+                    });
+                    
+                    webcamElement.srcObject = stream;
+                    document.getElementById('step-setup').classList.add('hidden');
+                    document.getElementById('step-capture').classList.remove('hidden');
+                    renderProgressSlots();
+
+                } catch (fallbackErr) {
+                    // PHÂN TÍCH CHÍNH XÁC NGUYÊN NHÂN KHÔNG HIỆN THÔNG BÁO XIN QUYỀN
+                    diagPanel.classList.remove('hidden');
+                    
+                    if (fallbackErr.name === 'NotAllowedError' || fallbackErr.name === 'PermissionDeniedError') {
+                        diagMsg.innerHTML = `
+                            <strong>Lỗi chặn quyền (Permission Denied):</strong> <br>
+                            Bạn (hoặc hệ thống) đã chặn quyền truy cập Camera của trang web này trước đó nên trình duyệt không hiển thị lại hộp thoại xin phép nữa.<br><br>
+                            <strong>Cách sửa:</strong> <br>
+                            1. Hãy nhìn lên thanh địa chỉ của trình duyệt (phần nhập link trang web), bấm vào biểu tượng <strong>khóa móc 🔒</strong> hoặc <strong>hình Camera bị gạch chéo 🚫</strong>. <br>
+                            2. Chuyển trạng thái Máy ảnh (Camera) sang <strong>Cho phép (Allow)</strong>. <br>
+                            3. Nhấn nút <strong>Tải lại trang (Reload)</strong> phía dưới để áp dụng.
+                        `;
+                    } else if (fallbackErr.name === 'NotFoundError' || fallbackErr.name === 'DevicesNotFoundError') {
+                        diagMsg.innerHTML = `
+                            <strong>Lỗi không tìm thấy Camera (Devices Not Found):</strong> <br>
+                            Hệ thống không tìm thấy bất kỳ thiết bị ghi hình (webcam) nào kết nối với máy tính này. Vui lòng cắm lại webcam hoặc kiểm tra Driver camera của bạn.
+                        `;
+                    } else if (fallbackErr.name === 'NotReadableError' || fallbackErr.name === 'TrackStartError') {
+                        diagMsg.innerHTML = `
+                            <strong>Camera đang bị chiếm dụng (Not Readable):</strong> <br>
+                            Thiết bị camera của bạn đang hoạt động nhưng bị một phần mềm khác khóa quyền sử dụng. <br><br>
+                            <strong>Cách sửa:</strong> Hãy tắt hoàn toàn các phần mềm đang dùng camera khác như: Zoom, Microsoft Teams, OBS Studio, Zalo, hoặc các tab trình duyệt khác, sau đó tải lại trang này.
+                        `;
+                    } else {
+                        diagMsg.innerHTML = `
+                            <strong>Gặp lỗi không xác định:</strong> ${fallbackErr.message} <br>
+                            Vui lòng kiểm tra lại thiết bị phần cứng camera hoặc thử mở bằng trình duyệt ẩn danh (Incognito Mode).
+                        `;
+                    }
+                    console.error("Lỗi hoàn toàn:", fallbackErr);
+                }
+            }
+        }
+
+        // Tắt camera và quay lại ban đầu
+        function stopCameraAndReset() {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+            }
+            document.getElementById('step-capture').classList.add('hidden');
+            document.getElementById('step-setup').classList.remove('hidden');
+        }
+
+        // Vẽ danh sách slot tiến trình
+        function renderProgressSlots() {
+            const container = document.getElementById('progress-slots');
+            container.innerHTML = '';
+            for(let i = 0; i < selectedLayout; i++) {
+                container.innerHTML += `
+                    <div id="slot-${i}" class="aspect-video bg-gray-100 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-400 text-sm font-bold">
+                        ${i + 1}
+                    </div>
+                `;
+            }
+        }
+
+        // 3. ÂM THANH GIẢ LẬP (Sử dụng Web Audio API)
+        function playShutterSound() {
+            try {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+
+                oscillator.type = 'triangle';
+                oscillator.frequency.setValueAtTime(150, audioCtx.currentTime);
+                oscillator.frequency.exponentialRampToValueAtTime(1200, audioCtx.currentTime + 0.1);
+                
+                gainNode.gain.setValueAtTime(0.5, audioCtx.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+
+                oscillator.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+
+                oscillator.start();
+                oscillator.stop(audioCtx.currentTime + 0.15);
+            } catch (e) {
+                console.log("Web Audio API không được hỗ trợ hoặc bị chặn.");
+            }
+        }
+
+        // 4. TIẾN TRÌNH CHỤP ẢNH TỰ ĐỘNG (SEQUENCE CAPTURE)
+        async function triggerSession() {
+            capturedImages = [];
+            document.getElementById('btn-trigger-capture').disabled = true;
+            document.getElementById('btn-trigger-capture').classList.add('opacity-50');
+            document.getElementById('capture-status').innerText = "Đang trong phiên chụp...";
+
+            for (let i = 0; i < selectedLayout; i++) {
+                await startIndividualCountdown(3); 
+                capturePhoto(i);
+                await delay(1000); 
+            }
+
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+            }
+            showEditor();
+        }
+
+        function delay(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        function startIndividualCountdown(seconds) {
+            return new Promise((resolve) => {
+                countdownOverlay.classList.remove('hidden');
+                let count = seconds;
+                countdownText.innerText = count;
+
+                const interval = setInterval(() => {
+                    count--;
+                    if (count > 0) {
+                        countdownText.innerText = count;
+                    } else {
+                        clearInterval(interval);
+                        countdownOverlay.classList.add('hidden');
+                        resolve();
+                    }
+                }, 1000);
+            });
+        }
+
+        function capturePhoto(index) {
+            flashScreen.classList.remove('opacity-0');
+            flashScreen.classList.add('opacity-100');
+            playShutterSound();
+            
+            setTimeout(() => {
+                flashScreen.classList.remove('opacity-100');
+                flashScreen.classList.add('opacity-0');
+            }, 150);
+
+            const canvas = document.createElement('canvas');
+            canvas.width = webcamElement.videoWidth || 640;
+            canvas.height = webcamElement.videoHeight || 480;
+            const ctx = canvas.getContext('2d');
+            
+            ctx.translate(canvas.width, 0);
+            ctx.scale(-1, 1);
+            ctx.drawImage(webcamElement, 0, 0, canvas.width, canvas.height);
+
+            const dataUrl = canvas.toDataURL('image/jpeg');
+            capturedImages.push(dataUrl);
+
+            const slot = document.getElementById(`slot-${index}`);
+            slot.innerHTML = `<img src="${dataUrl}" class="w-full h-full object-cover rounded-lg">`;
+            slot.classList.remove('border-dashed');
+            slot.classList.add('border-indigo-500');
+        }
+
+        // 5. CHUYỂN SANG BỘ BIÊN TẬP (EDITOR)
+        function showEditor() {
+            document.getElementById('step-capture').classList.add('hidden');
+            document.getElementById('step-editor').classList.remove('hidden');
+
+            const stripImagesContainer = document.getElementById('strip-images');
+            stripImagesContainer.innerHTML = '';
+
+            capturedImages.forEach((imgSrc) => {
+                stripImagesContainer.innerHTML += `
+                    <div class="relative w-full overflow-hidden rounded bg-gray-100 border border-gray-200" style="aspect-ratio: 4/3;">
+                        <img src="${imgSrc}" class="photo-item w-full h-full object-cover select-none transition" style="filter: none;">
+                    </div>
+                `;
+            });
+        }
+
+        // 6. THAO TÁC BIÊN TẬP
+        function changeFrameColor(bgColor) {
+            const strip = document.getElementById('photostrip');
+            strip.style.backgroundColor = bgColor;
+            
+            const stripText = document.getElementById('strip-text');
+            const stripDate = document.getElementById('strip-date');
+            
+            if(bgColor === '#111827') {
+                stripText.style.color = '#f3f4f6';
+                stripDate.style.color = '#9ca3af';
+            } else {
+                stripText.style.color = '#1f2937';
+                stripDate.style.color = '#9ca3af';
+            }
+        }
+
+        function applyFilter(filterString) {
+            const photos = document.querySelectorAll('.photo-item');
+            photos.forEach(img => {
+                img.style.filter = filterString;
+            });
+        }
+
+        function addSticker(emoji) {
+            const strip = document.getElementById('photostrip');
+            const stickerEl = document.createElement('div');
+            stickerEl.className = 'sticker-item absolute text-4xl select-none p-2 group';
+            stickerEl.style.left = '40%';
+            stickerEl.style.top = '30%';
+            
+            stickerEl.innerHTML = `
+                <span>${emoji}</span>
+                <button class="delete-btn absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-4 h-4 text-[10px] flex items-center justify-center shadow focus:outline-none">&times;</button>
+            `;
+
+            stickerEl.querySelector('.delete-btn').addEventListener('click', (e) => {
+                e.stopPropagation();
+                stickerEl.remove();
+            });
+
+            makeElementDraggable(stickerEl);
+            strip.appendChild(stickerEl);
+        }
+
+        function makeElementDraggable(el) {
+            let isDragging = false;
+            let startX, startY;
+            let initLeft, initTop;
+
+            el.addEventListener('pointerdown', function(e) {
+                if (e.target.classList.contains('delete-btn')) return;
+                
+                isDragging = true;
+                startX = e.clientX;
+                startY = e.clientY;
+                initLeft = el.offsetLeft;
+                initTop = el.offsetTop;
+                
+                el.setPointerCapture(e.pointerId);
+                e.preventDefault();
+            });
+
+            el.addEventListener('pointermove', function(e) {
+                if (!isDragging) return;
+                const dx = e.clientX - startX;
+                const dy = e.clientY - startY;
+                el.style.left = `${initLeft + dx}px`;
+                el.style.top = `${initTop + dy}px`;
+            });
+
+            el.addEventListener('pointerup', function(e) {
+                if (!isDragging) return;
+                isDragging = false;
+                el.releasePointerCapture(e.pointerId);
+            });
+        }
+
+        function updateStripText() {
+            const val = document.getElementById('input-strip-text').value;
+            document.getElementById('strip-text').innerText = val || 'My Memories';
+        }
+
+        // 7. XUẤT ẢNH & IN ẢNH
+        function downloadStrip() {
+            const deleteButtons = document.querySelectorAll('.delete-btn');
+            deleteButtons.forEach(btn => btn.style.display = 'none');
+
+            const target = document.getElementById('photostrip');
+            
+            html2canvas(target, {
+                scale: 3, 
+                useCORS: true,
+                backgroundColor: null
+            }).then(canvas => {
+                deleteButtons.forEach(btn => btn.removeAttribute('style'));
+
+                const link = document.createElement('a');
+                link.download = `k-photobooth-${Date.now()}.png`;
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+            }).catch(err => {
+                console.error("Lỗi xuất ảnh:", err);
+                alert("Không thể xuất ảnh.");
+            });
+        }
+
+        function printStrip() {
+            const deleteButtons = document.querySelectorAll('.delete-btn');
+            deleteButtons.forEach(btn => btn.style.display = 'none');
+
+            html2canvas(document.getElementById('photostrip'), { scale: 2 }).then(canvas => {
+                deleteButtons.forEach(btn => btn.removeAttribute('style'));
+                
+                const dataUrl = canvas.toDataURL('image/png');
+                const windowContent = `
+                    <!DOCTYPE html>
+                    <html>
+                    <head><title>Print Photobooth</title></head>
+                    <body style="margin:0; display:flex; justify-content:center; align-items:center; height:100vh;">
+                        <img src="${dataUrl}" style="max-height:100%; max-width:100%;" onload="window.print(); window.close();" />
+                    </body>
+                    </html>
+                `;
+                
+                const printWin = window.open('', '', 'width=600,height=800');
+                printWin.document.open();
+                printWin.write(windowContent);
+                printWin.document.close();
+            });
+        }
+
+        function restartApp() {
+            if (confirm("Chụp phiên mới?")) {
+                document.getElementById('step-editor').classList.add('hidden');
+                document.getElementById('step-setup').classList.remove('hidden');
+                capturedImages = [];
+                const inputBtn = document.getElementById('btn-trigger-capture');
+                inputBtn.disabled = false;
+                inputBtn.classList.remove('opacity-50');
+            }
+        }
+    -->
+</body>
+</html>
